@@ -153,7 +153,7 @@ const club = ref('Aberdare Country Club');
 const event = ref(events[1].name); // Default to "Seniors Open"
 const isOtherSelected = computed(() => club.value === 'Other');
 const paymentConfirmation = ref(true);
-const confirmCheck = ref(false);
+const confirmCheck = ref(true);
 const isSubmitting = ref(false);
 
 // Navigation
@@ -477,7 +477,7 @@ function handleFlutterwavePayment() {
           <!-- Navigation Buttons -->
           <div class="d-flex gap-2 mt-4">
             <button type="button" class="btn btn-secondary flex-fill" @click="tryPrevStep">PREV</button>
-            <button type="submit" class="btn btn-success flex-fill" :disabled="isSubmitting"
+            <button type="submit" class="btn btn-success flex-fill" :disabled="isSubmitting || !confirmCheck"
               @click="handleFlutterwavePayment">
               <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
                 aria-hidden="true"></span>
