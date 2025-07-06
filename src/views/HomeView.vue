@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, reactive } from 'vue';
+import { useFirestore } from 'vuefire';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+
+const db = useFirestore(); // Initialize Firestore
 
 const showAlert = ref(false);
 const alertMessage = ref("");
@@ -43,7 +47,6 @@ const countriesList = [
   "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela",
   "Vietnam", "Yemen", "Zambia", "Zimbabwe"
 ];
-
 
 const clubOptions = [
   "Aberdare Country Club",
@@ -133,7 +136,12 @@ const clubOptions = [
   "Other"
 ];
 
-const events = ["Ladies Open", "Seniors Open", "Amateur Open", "Professional Open"];
+const events = [
+  { name: "Ladies Open", price: "100,000 UGX" },
+  { name: "Seniors Open", price: "250,000 UGX" },
+  { name: "Amateur Open", price: "50,000 UGX" },
+  { name: "Professional Open", price: "250,000 UGX" }
+];
 
 const firstName = ref("");
 const otherName = ref("");
@@ -141,10 +149,10 @@ const lastName = ref("");
 const email = ref("");
 const country = ref("Uganda");
 const phone = ref("");
-const club = ref('Aberdare Country Club') // default selected
-const isOtherSelected = computed(() => club.value === 'Other')
-const event = ref("Seniors Open");
-const paymentMethod = ref("");
+const club = ref('Aberdare Country Club');
+const event = ref(events[1].name); // Default to "Seniors Open"
+const isOtherSelected = computed(() => club.value === 'Other');
+const paymentConfirmation = ref(true);
 const confirmCheck = ref(false);
 const isSubmitting = ref(false);
 
@@ -154,6 +162,7 @@ const nextStep = () => {
     currentStep.value++;
   }
 };
+
 const prevStep = () => {
   if (currentStep.value > 1) {
     currentStep.value--;
@@ -163,7 +172,6 @@ const prevStep = () => {
 const progressPercentage = computed(() => {
   return ((currentStep.value + 1) / (steps.length + 1)) * 100;
 });
-
 
 function validateStep(step: number): boolean {
   if (step === 2) {
@@ -197,16 +205,21 @@ function handleSubmit() {
   setTimeout(() => {
     alert("Registration submitted successfully!");
     isSubmitting.value = false;
-    currentStep.value = 1;
-    firstName.value = "";
-    otherName.value = "";
-    lastName.value = "";
-    email.value = "";
-    country.value = "Uganda";
-    phone.value = "";
-    club.value = 'Aberdare Country Club';
-    event.value = "Seniors Open";
+    resetForm();
   }, 2000);
+}
+
+function resetForm() {
+  currentStep.value = 1;
+  firstName.value = "";
+  otherName.value = "";
+  lastName.value = "";
+  email.value = "";
+  country.value = "Uganda";
+  phone.value = "";
+  club.value = 'Aberdare Country Club';
+  event.value = "Seniors Open";
+  confirmCheck.value = false;
 }
 
 function tryNextStep() {
@@ -216,8 +229,104 @@ function tryNextStep() {
 }
 
 function tryPrevStep() {
-  // No validation needed for prev, but can add if needed
   prevStep();
+}
+
+// Single makePayment function that uses current form values
+function makePayment(amount: number) {
+  if (!validateStep(4)) return;
+  isSubmitting.value = true;
+
+  const registrationData = {
+    firstName: firstName.value,
+    otherName: otherName.value,
+    lastName: lastName.value,
+    email: email.value,
+    country: country.value,
+    phone: phone.value,
+    club: club.value,
+    event: event.value,
+    amount: amount,
+    paymentConfirmation: paymentConfirmation.value,
+    registrationStatus: true,
+    timestamp: serverTimestamp()
+  };
+
+  addDoc(collection(db, "registrations"), registrationData)
+    .then(() => {
+      alert("Registration submitted successfully!");
+      isSubmitting.value = false;
+      resetForm();
+    })
+    .catch((error) => {
+      console.error("Error adding document: ", error);
+      isSubmitting.value = false;
+    });
+}
+
+function FlutterwaveCheckout(options: {
+  public_key: string;
+  tx_ref: string;
+  amount: number;
+  currency: string;
+  payment_options: string;
+  customer: { name: string; email: string; phone_number: string; };
+  callback: (response: any) => void;
+  onclose: () => void;
+}) {
+  if (typeof window !== "undefined" && (window as any).FlutterwaveCheckout) {
+    (window as any).FlutterwaveCheckout({
+      public_key: options.public_key,
+      tx_ref: options.tx_ref,
+      amount: options.amount,
+      currency: options.currency,
+      payment_options: options.payment_options,
+      customer: options.customer,
+      callback: options.callback,
+      onclose: options.onclose,
+      customizations: {
+        title: "Uganda Golf Union",
+        description: "Golf Registration Payment",
+        logo: "https://golf-uganda.com/wp-content/uploads/2023/07/UGU-Logo-Converted.png"
+      }
+    });
+  } else {
+    alert("Payment service unavailable. Please try again later.");
+    options.onclose();
+  }
+}
+
+function handleFlutterwavePayment() {
+  const selectedEvent = events.find(e => e.name === event.value);
+  const amount = selectedEvent ? parseInt(selectedEvent.price.replace(/[^0-9]/g, '')) : 0;
+
+  if (amount <= 0) {
+    alert("Invalid event selected. Please select a valid event.");
+    return;
+  }
+
+  FlutterwaveCheckout({
+    public_key: import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY,
+    tx_ref: `tx-${Date.now()}`,
+    amount: amount,
+    currency: "UGX",
+    payment_options: "card, ussd, banktransfer, mobilemoneyuganda",
+    customer: {
+      name: `${firstName.value} ${otherName.value || ""} ${lastName.value}`,
+      email: email.value,
+      phone_number: phone.value
+    },
+    callback: (response: any) => {
+      if (response.status === "successful") {
+        makePayment(amount);
+      } else {
+        alert("Payment failed. Please try again.");
+      }
+    },
+    onclose: () => {
+      console.log("Payment closed");
+    }
+  });
 }
 </script>
 
@@ -321,8 +430,8 @@ function tryPrevStep() {
             <label for="event" class="form-label">Event<span class="text-danger">*</span></label>
             <select id="event" class="form-select" v-model="event">
               <option :value="null">Select an event...</option>
-              <option v-for="option in events" :key="option" :value="option">
-                {{ option }}
+              <option v-for="option in events" :key="option.name" :value="option.name">
+                {{ option.name }} ({{ option.price }})
               </option>
             </select>
           </div>
@@ -348,6 +457,14 @@ function tryPrevStep() {
             <input type="text" id="confirmNumber" class="form-control" v-model="phone" readonly />
           </div>
           <div class="mb-2">
+            <div class="alert alert-success mt-3">
+              Hello <strong>{{ firstName }} {{ otherName || "" }} {{ lastName }}</strong>! This is the event you are
+              registering for:
+              <strong>{{ event }}</strong> at a cost of <strong>{{events.find(e => e.name === event)?.price}}</strong>.
+              Click the "Confirm Information" checkbox below to proceed with the payment.
+            </div>
+          </div>
+          <div class="mb-2">
             <div class="form-check">
               <input type="checkbox" id="confirmCheck" v-model="confirmCheck" class="form-check-input" />
               <label for="confirmCheck" class="form-check-label">Confirm Information<span
@@ -360,10 +477,11 @@ function tryPrevStep() {
           <!-- Navigation Buttons -->
           <div class="d-flex gap-2 mt-4">
             <button type="button" class="btn btn-secondary flex-fill" @click="tryPrevStep">PREV</button>
-            <button type="submit" class="btn btn-success flex-fill" :disabled="isSubmitting">
+            <button type="submit" class="btn btn-success flex-fill" :disabled="isSubmitting"
+              @click="handleFlutterwavePayment">
               <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
                 aria-hidden="true"></span>
-              SUBMIT</button>
+              PAY NOW</button>
           </div>
         </div>
       </form>
