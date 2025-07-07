@@ -188,7 +188,7 @@ function resetForm() {
   email.value = "";
   country.value = "Uganda";
   phone.value = "";
-  club.value = 'Aberdare Country Club';
+  club.value = "";
   event.value = "";
   confirmCheck.value = false;
 }
@@ -210,24 +210,33 @@ function getEventAmount() {
   const selectedEvent = events.find(e => e.name === event.value);
   let amount = 0;
   let subsidiaryPrice = "";
+  let currency = "UGX";
 
   if (selectedEvent && selectedEvent.subsidiaries.length && selectedSubsidiary.value) {
     const sub = selectedEvent.subsidiaries.find(s => s.name === selectedSubsidiary.value);
     if (sub && sub.price) {
+      // Detect currency
+      if (sub.price.includes("USD")) {
+        currency = "USD";
+        amount = parseInt(sub.price.replace(/[^0-9]/g, ''));
+      } else {
+        currency = "UGX";
+        amount = parseInt(sub.price.replace(/[^0-9]/g, ''));
+      }
       subsidiaryPrice = sub.price;
-      amount = parseInt(sub.price.replace(/[^0-9]/g, ''));
     }
   } else if (selectedEvent && selectedEvent.subsidiaries.length === 0) {
     // Handle events without subsidiaries - you may want to set a default price
     amount = 0; // Set appropriate default amount
   }
 
-  return { amount, subsidiaryPrice };
+  return { amount, subsidiaryPrice, currency };
 }
 
-function saveToFirebase(paymentAmount?: number) {
-  const { amount, subsidiaryPrice } = getEventAmount();
+function saveToFirebase(paymentAmount?: number, paymentCurrency?: string) {
+  const { amount, subsidiaryPrice, currency } = getEventAmount();
   const finalAmount = paymentAmount || amount;
+  const finalCurrency = paymentCurrency || currency;
 
   const registrationData = {
     firstName: firstName.value,
@@ -241,9 +250,10 @@ function saveToFirebase(paymentAmount?: number) {
     subsidiary: selectedSubsidiary.value,
     subsidiaryPrice: subsidiaryPrice,
     amount: finalAmount,
+    currency: finalCurrency,
     paymentConfirmation: paymentConfirmation.value,
     registrationStatus: true,
-    paymentMethod: "flutterwave", // Track payment method
+    paymentMethod: "flutterwave",
     timestamp: serverTimestamp()
   };
 
@@ -267,11 +277,9 @@ function handleSubmit() {
     });
 }
 
-function makePayment(amount: number) {
-  if (!validateStep(4)) return;
+function makePayment(amount: number, currency: string) {
   isSubmitting.value = true;
-
-  saveToFirebase(amount)
+  saveToFirebase(amount, currency)
     .then(() => {
       alert("Registration and payment submitted successfully!");
       isSubmitting.value = false;
@@ -285,7 +293,7 @@ function makePayment(amount: number) {
 }
 
 function handleFlutterwavePayment() {
-  const { amount } = getEventAmount();
+  const { amount, currency } = getEventAmount();
 
   if (amount <= 0) {
     alert("Invalid event or subsidiary selected. Please select a valid event and subsidiary.");
@@ -296,8 +304,8 @@ function handleFlutterwavePayment() {
     public_key: import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY,
     tx_ref: `tx-${Date.now()}`,
     amount: amount,
-    currency: "UGX",
-    payment_options: "card, ussd, banktransfer, mobilemoneyuganda",
+    currency: currency,
+    payment_options: currency === "USD" ? "card" : "card, ussd, banktransfer, mobilemoneyuganda",
     customer: {
       name: `${firstName.value} ${otherName.value || ""} ${lastName.value}`,
       email: email.value,
@@ -305,7 +313,7 @@ function handleFlutterwavePayment() {
     },
     callback: (response: any) => {
       if (response.status === "successful") {
-        makePayment(amount);
+        makePayment(amount, currency);
       } else {
         alert("Payment failed. Please try again.");
       }
@@ -351,7 +359,7 @@ function FlutterwaveCheckout(options: {
     </div>
     <!-- Step Content -->
     <div class="bg-white rounded-4 shadow p-4 w-100" style="max-width: 600px;">
-      <form @submit.prevent="handleSubmit">
+      <form>
         <!-- Stepper Progress Bar -->
         <div class="w-100 mb-4">
           <div class="progress" style="height: 10px;">
@@ -486,7 +494,7 @@ function FlutterwaveCheckout(options: {
                   <strong>
                     {{
                       selectedEventObj.subsidiaries.find(s => s.name === selectedSubsidiary)?.name || 'N/A'
-                    }}
+                    }}.
                   </strong>
                 </span>
                 <span v-else>
@@ -512,7 +520,7 @@ function FlutterwaveCheckout(options: {
           <!-- Navigation Buttons -->
           <div class="d-flex gap-2 mt-4">
             <button type="button" class="btn btn-secondary flex-fill" @click="tryPrevStep">PREV</button>
-            <button type="submit" class="btn btn-success flex-fill" :disabled="isSubmitting || !confirmCheck"
+            <button type="button" class="btn btn-success flex-fill" :disabled="isSubmitting || !confirmCheck"
               @click="handleFlutterwavePayment">
               <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status"
                 aria-hidden="true"></span>
