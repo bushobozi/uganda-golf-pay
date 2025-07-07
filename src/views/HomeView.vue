@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useFirestore } from 'vuefire';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -49,98 +49,61 @@ const countriesList = [
 ];
 
 const clubOptions = [
-  "Aberdare Country Club",
-  "Air Force Golf Club - Eastleigh",
-  "Arusha Gymkhana Club",
-  "Borrowale Brooke Country Club",
-  "Cathedral Peak Golf Club",
-  "Chapman Golf Club",
-  "Chibuluma Golf Club",
-  "Country Club Johannesburg",
-  "Dar-es-salaam Gymkhana Golf Club",
-  "Eldoret Golf Club",
   "Entebbe Club",
-  "Fairmont Mount Kenya Safari Club",
-  "Falcon Golf Club",
   "Garuga Golf Club, Kihihi",
-  "Gilgil Golf Club",
-  "Golf Park Golf Club",
-  "Gweru Golf Club",
-  "Hippo Valley Country Club",
-  "IBB International Golf & Country Club",
   "Jinja Club",
   "Kabale Sports Club",
-  "Kakamega Golf Club",
-  "Karen Golf & Country Club",
-  "Kenya Railways Golf Club",
-  "Kiambu Golf Club",
   "Kilembe Mines Golf Club",
-  "Kilimanjaro Golf Club",
-  "Kingswood Golf Estate",
   "Kinyara Golf Club",
-  "Kisii Sports Club",
-  "Kitale Golf Club",
   "Lake Victoria Serena Golf Resort & Spa",
-  "Lilongwe Golf Club",
-  "Limuru Country Club",
   "Lira Sports & Golf Club",
-  "Lugalo Golf Club",
   "Lugazi Hills Golf & Country Club",
-  "Lusaka Golf Club",
-  "Machakos Golf Club",
-  "Makuyu Golf Club",
-  "Malindi Golf Club",
   "Mary Louise Simpkins Memorial Golf Club, Namulonge",
   "Masindi Golf Club",
   "Mbale Sports Club",
   "Mbarara Sports Club",
-  "Miccom Golf & Country Club",
-  "Molo Highlands Golf Course",
-  "Mombasa Golf Club",
-  "Morogoro Gymkhana Club",
-  "Mumias Golf Club",
-  "Muthaiga Golf Club",
-  "Nakuru Golf Club",
-  "Nandi Bears Golf Club",
-  "Nanyuki Golf Club",
-  "Ndumberi Golf Club",
-  "Njoro Country Club",
-  "Nkana Golf Club",
-  "Nyahururu Golf Club",
-  "Nyali Golf & Country Club",
-  "Nyanza Golf Club",
-  "Nyeri Golf Club",
-  "OLGC",
-  "Orapa Golf Club",
   "Palm Valley Golf & Country Club",
-  "Pretoria Country Club",
-  "Rayfield Golf Club",
-  "Royal Harare Golf Club",
-  "Royal Nairobi Golf Club",
-  "Ruiru Golf Club",
-  "Shell Golf Club",
-  "Sigona Golf Club",
   "Soroti Golf Club",
-  "Soweto Country Club",
-  "Terrawood Golf & Country Club",
-  "Thika Sports Club",
   "Toro Club",
   "Tororo Club",
   "Uganda Golf Club",
-  "Vet Lab Golf Club",
-  "Vipingo Ridge Golf Club",
   "West Nile Club",
-  "Windsor Golf & Country Club",
-  "Wingate Golf Club",
-  "Yaoundé Golf Club",
   "Other"
 ];
 
 const events = [
-  { name: "Ladies Open", price: "100,000 UGX" },
-  { name: "Seniors Open", price: "250,000 UGX" },
-  { name: "Amateur Open", price: "50,000 UGX" },
-  { name: "Professional Open", price: "250,000 UGX" }
+  {
+    name: "Ladies Open",
+    subsidiaries: [
+      { name: "LADIES SILVER EVENT", price: "300,000 UGX" },
+      { name: "LADIES BRONZE EVENT", price: "200,000 UGX" },
+      { name: "SUBSIDIARY (MEN) EVENT", price: "100,000 UGX" }
+    ]
+  },
+  {
+    name: "Seniors Open",
+    subsidiaries: [
+      { name: "SENIORS OPEN", price: "200,000 UGX" },
+    ]
+  },
+  {
+    name: "Amateur Open",
+    subsidiaries: [
+      { name: "AMATEUR GROSS EVENT", price: "400,000 UGX" },
+      { name: "SUBSIDIARY GROUP C", price: "100,000 UGX" },
+      { name: "SUBSIDIARY GROUP B", price: "100,000 UGX" },
+      { name: "SUBSIDIARY TEST", price: "1,000 UGX" }
+    ]
+  },
+  {
+    name: "Professional Open",
+    subsidiaries: [
+      { name: "PRO-AM", price: "100,000 UGX" },
+      { name: "PROFESSIONAL EVENT USD", price: "USD 130" },
+      { name: "PROFESSIONAL EVENT UGX", price: "UGX 450,000" },
+      { name: "SUBSIDIARY EVENT", price: "100,000 UGX" }
+    ]
+  }
 ];
 
 const firstName = ref("");
@@ -149,12 +112,21 @@ const lastName = ref("");
 const email = ref("");
 const country = ref("Uganda");
 const phone = ref("");
-const club = ref('Aberdare Country Club');
+const club = ref("");
 const event = ref(events[1].name); // Default to "Seniors Open"
 const isOtherSelected = computed(() => club.value === 'Other');
 const paymentConfirmation = ref(true);
 const confirmCheck = ref(true);
 const isSubmitting = ref(false);
+const selectedSubsidiary = ref("");
+
+const selectedEventObj = computed(() =>
+  events.find(e => e.name === event.value)
+);
+
+watch(event, () => {
+  selectedSubsidiary.value = "";
+});
 
 // Navigation
 const nextStep = () => {
@@ -170,7 +142,7 @@ const prevStep = () => {
 };
 
 const progressPercentage = computed(() => {
-  return ((currentStep.value + 1) / (steps.length + 1)) * 100;
+  return ((currentStep.value - 1) / (steps.length - 1)) * 100;
 });
 
 function validateStep(step: number): boolean {
@@ -187,6 +159,14 @@ function validateStep(step: number): boolean {
       showAlert.value = true;
       return false;
     }
+
+    // Add this validation for subsidiaries
+    const selectedEvent = events.find(e => e.name === event.value);
+    if (selectedEvent && selectedEvent.subsidiaries.length > 0 && !selectedSubsidiary.value) {
+      alertMessage.value = "Please select a subsidiary for this event.";
+      showAlert.value = true;
+      return false;
+    }
   }
   if (step === 4) {
     if (!confirmCheck.value) {
@@ -199,15 +179,6 @@ function validateStep(step: number): boolean {
   return true;
 }
 
-function handleSubmit() {
-  if (!validateStep(4)) return;
-  isSubmitting.value = true;
-  setTimeout(() => {
-    alert("Registration submitted successfully!");
-    isSubmitting.value = false;
-    resetForm();
-  }, 2000);
-}
 
 function resetForm() {
   currentStep.value = 1;
@@ -218,7 +189,7 @@ function resetForm() {
   country.value = "Uganda";
   phone.value = "";
   club.value = 'Aberdare Country Club';
-  event.value = "Seniors Open";
+  event.value = "";
   confirmCheck.value = false;
 }
 
@@ -233,9 +204,30 @@ function tryPrevStep() {
 }
 
 // Single makePayment function that uses current form values
-function makePayment(amount: number) {
-  if (!validateStep(4)) return;
-  isSubmitting.value = true;
+// Replace your existing makePayment and handleSubmit functions with this:
+
+function getEventAmount() {
+  const selectedEvent = events.find(e => e.name === event.value);
+  let amount = 0;
+  let subsidiaryPrice = "";
+
+  if (selectedEvent && selectedEvent.subsidiaries.length && selectedSubsidiary.value) {
+    const sub = selectedEvent.subsidiaries.find(s => s.name === selectedSubsidiary.value);
+    if (sub && sub.price) {
+      subsidiaryPrice = sub.price;
+      amount = parseInt(sub.price.replace(/[^0-9]/g, ''));
+    }
+  } else if (selectedEvent && selectedEvent.subsidiaries.length === 0) {
+    // Handle events without subsidiaries - you may want to set a default price
+    amount = 0; // Set appropriate default amount
+  }
+
+  return { amount, subsidiaryPrice };
+}
+
+function saveToFirebase(paymentAmount?: number) {
+  const { amount, subsidiaryPrice } = getEventAmount();
+  const finalAmount = paymentAmount || amount;
 
   const registrationData = {
     firstName: firstName.value,
@@ -246,62 +238,57 @@ function makePayment(amount: number) {
     phone: phone.value,
     club: club.value,
     event: event.value,
-    amount: amount,
+    subsidiary: selectedSubsidiary.value,
+    subsidiaryPrice: subsidiaryPrice,
+    amount: finalAmount,
     paymentConfirmation: paymentConfirmation.value,
     registrationStatus: true,
+    paymentMethod: "flutterwave", // Track payment method
     timestamp: serverTimestamp()
   };
 
-  addDoc(collection(db, "registrations"), registrationData)
+  return addDoc(collection(db, "registrations"), registrationData);
+}
+
+function handleSubmit() {
+  if (!validateStep(4)) return;
+  isSubmitting.value = true;
+
+  saveToFirebase()
     .then(() => {
-      alert("Registration submitted successfully!");
+      // alert("Registration submitted successfully!");
       isSubmitting.value = false;
       resetForm();
     })
     .catch((error) => {
       console.error("Error adding document: ", error);
+      alert("Registration failed. Please try again.");
       isSubmitting.value = false;
     });
 }
 
-function FlutterwaveCheckout(options: {
-  public_key: string;
-  tx_ref: string;
-  amount: number;
-  currency: string;
-  payment_options: string;
-  customer: { name: string; email: string; phone_number: string; };
-  callback: (response: any) => void;
-  onclose: () => void;
-}) {
-  if (typeof window !== "undefined" && (window as any).FlutterwaveCheckout) {
-    (window as any).FlutterwaveCheckout({
-      public_key: options.public_key,
-      tx_ref: options.tx_ref,
-      amount: options.amount,
-      currency: options.currency,
-      payment_options: options.payment_options,
-      customer: options.customer,
-      callback: options.callback,
-      onclose: options.onclose,
-      customizations: {
-        title: "Uganda Golf Union",
-        description: "Golf Registration Payment",
-        logo: "https://golf-uganda.com/wp-content/uploads/2023/07/UGU-Logo-Converted.png"
-      }
+function makePayment(amount: number) {
+  if (!validateStep(4)) return;
+  isSubmitting.value = true;
+
+  saveToFirebase(amount)
+    .then(() => {
+      alert("Registration and payment submitted successfully!");
+      isSubmitting.value = false;
+      resetForm();
+    })
+    .catch((error) => {
+      console.error("Error adding document: ", error);
+      alert("Registration failed. Please try again.");
+      isSubmitting.value = false;
     });
-  } else {
-    alert("Payment service unavailable. Please try again later.");
-    options.onclose();
-  }
 }
 
 function handleFlutterwavePayment() {
-  const selectedEvent = events.find(e => e.name === event.value);
-  const amount = selectedEvent ? parseInt(selectedEvent.price.replace(/[^0-9]/g, '')) : 0;
+  const { amount } = getEventAmount();
 
   if (amount <= 0) {
-    alert("Invalid event selected. Please select a valid event.");
+    alert("Invalid event or subsidiary selected. Please select a valid event and subsidiary.");
     return;
   }
 
@@ -328,10 +315,40 @@ function handleFlutterwavePayment() {
     }
   });
 }
+
+function FlutterwaveCheckout(options: {
+  public_key: string;
+  tx_ref: string;
+  amount: number;
+  currency: string;
+  payment_options: string;
+  customer: { name: string; email: string; phone_number: string };
+  callback: (response: any) => void;
+  onclose: () => void;
+}) {
+  // Check if Flutterwave inline script is loaded
+  if (typeof window !== "undefined" && (window as any).FlutterwaveCheckout) {
+    (window as any).FlutterwaveCheckout({
+      ...options,
+      callback: (response: any) => {
+        options.callback(response);
+      },
+      onclose: () => {
+        options.onclose();
+      }
+    });
+  } else {
+    alert("Flutterwave payment library not loaded. Please try again later.");
+    options.onclose();
+  }
+}
 </script>
 
 <template>
   <main class="bg-light grid w-100 px-4 py-5">
+    <div class="d-flex justify-content-center align-items-center mb-3">
+      <img src="/images/tournmentphoto.png" alt="tournamnet image" loading="lazy" style="width: 250px;" />
+    </div>
     <!-- Step Content -->
     <div class="bg-white rounded-4 shadow p-4 w-100" style="max-width: 600px;">
       <form @submit.prevent="handleSubmit">
@@ -358,14 +375,8 @@ function handleFlutterwavePayment() {
           <div class="row">
             <div class="col-md-6">
               <div>
-                <label class="form-label" for="firstName">First Name<span class="text-danger">*</span></label>
+                <label class="form-label mt-1" for="firstName">First Name<span class="text-danger">*</span></label>
                 <input id="firstName" type="text" class="form-control" v-model="firstName" />
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div>
-                <label class="form-label" for="otherName">Other Name</label>
-                <input id="otherName" type="text" class="form-control" v-model="otherName" />
               </div>
             </div>
             <div class="col-md-6">
@@ -391,7 +402,7 @@ function handleFlutterwavePayment() {
                 </select>
               </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-12">
               <div>
                 <label class="form-label mt-1" for="tel">Phone<span class="text-danger">*</span></label>
                 <input type="tel" id="tel" class="form-control" v-model="phone" />
@@ -411,9 +422,9 @@ function handleFlutterwavePayment() {
         <div v-if="currentStep === 3">
           <h4>Select Golf Club and Event</h4>
           <div class="mb-3">
-            <label class="form-label" for="club">Club <span class="text-danger">*</span></label>
+            <label class="form-label" for="club">Select Your Club <span class="text-danger">*</span></label>
             <select id="club" class="form-select" v-model="club">
-              <option disabled value="">Select a club...</option>
+              <option value>Select a club...</option>
               <option v-for="option in clubOptions" :key="option" :value="option">
                 {{ option }}
               </option>
@@ -426,12 +437,24 @@ function handleFlutterwavePayment() {
             <input id="otherClub" type="text" class="form-control" v-model="club" placeholder="Enter your club name" />
           </div>
 
+          <!-- filepath: /home/user/uganda-golf/src/views/HomeView.vue -->
           <div class="mb-2">
-            <label for="event" class="form-label">Event<span class="text-danger">*</span></label>
+            <label for="event" class="form-label">Choose Your Open<span class="text-danger">*</span></label>
             <select id="event" class="form-select" v-model="event">
-              <option :value="null">Select an event...</option>
+              <option value>Select an opening...</option>
               <option v-for="option in events" :key="option.name" :value="option.name">
-                {{ option.name }} ({{ option.price }})
+                {{ option.name }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Subsidiary selection, only if event has subsidiaries -->
+          <div v-if="selectedEventObj && selectedEventObj.subsidiaries.length" class="mb-2">
+            <label for="subsidiary" class="form-label">Select Your Event</label>
+            <select id="subsidiary" class="form-select" v-model="selectedSubsidiary">
+              <option value>Select event...</option>
+              <option v-for="sub in selectedEventObj.subsidiaries" :key="sub.name" :value="sub.name">
+                {{ sub.name }} ({{ sub.price }})
               </option>
             </select>
           </div>
@@ -446,21 +469,33 @@ function handleFlutterwavePayment() {
 
         <div v-if="currentStep === 4">
           <h4>Payment</h4>
-          <!--Confirm email and name-->
-          <p class="mb-3">Please confirm your email and name before proceeding to payment.</p>
-          <div class="mb-2">
-            <label for="confirmEmail" class="form-label">Email</label>
-            <input type="email" id="confirmEmail" class="form-control" v-model="email" readonly />
-          </div>
-          <div class="mb-2">
-            <label for="confirmNumber" class="form-label">Phone</label>
-            <input type="text" id="confirmNumber" class="form-control" v-model="phone" readonly />
-          </div>
           <div class="mb-2">
             <div class="alert alert-success mt-3">
-              Hello <strong>{{ firstName }} {{ otherName || "" }} {{ lastName }}</strong>! This is the event you are
+              Hello <strong>{{ firstName }} {{ lastName }}</strong>! This is the event you are
               registering for:
-              <strong>{{ event }}</strong> at a cost of <strong>{{events.find(e => e.name === event)?.price}}</strong>.
+              <strong>{{ event }}</strong>
+              <template v-if="selectedEventObj && selectedEventObj.subsidiaries.length">
+                <span v-if="selectedSubsidiary">
+                  at a cost of
+                  <strong>
+                    {{
+                      selectedEventObj.subsidiaries.find(s => s.name === selectedSubsidiary)?.price || 'N/A'
+                    }}
+                  </strong>
+                  for
+                  <strong>
+                    {{
+                      selectedEventObj.subsidiaries.find(s => s.name === selectedSubsidiary)?.name || 'N/A'
+                    }}
+                  </strong>
+                </span>
+                <span v-else>
+                  <strong>Please select a subsidiary to see the price.</strong>
+                </span>
+              </template>
+              <template v-else>
+                <strong>No price available for this event.</strong>
+              </template>
               Click the "Confirm Information" checkbox below to proceed with the payment.
             </div>
           </div>
